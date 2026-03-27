@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mastering the Cost Function | Gurnoor Singh</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.2.0/math.min.js"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;600;800&display=swap');
+        
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        
+        .panel { 
+            background: white; 
+            border-radius: 16px; 
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); 
+            border: 1px solid #e2e8f0;
+        }
+
+        /* Custom Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #4f46e5;
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 8px;
+            cursor: pointer;
+            background: #e0e7ff;
+            border-radius: 4px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
+            color: white;
+            transition: all 0.2s;
+        }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); }
+        .btn-primary:active { transform: translateY(0); }
+
+        /* Modal Overlay */
+        .modal-overlay {
+            background-color: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(4px);
+        }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <!-- Navbar / Branding -->
+    <nav class="bg-slate-900 text-white py-4 px-6 shadow-lg mb-8 sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold tracking-tight">Machine Learning Fundamentals</h1>
+                <p class="text-slate-400 text-xs tracking-wider uppercase">Linear Regression & Cost Function Visualization</p>
+            </div>
+            <div class="text-right hidden md:block">
+                <div class="text-sm font-semibold">Created by Gurnoor Singh</div>
+                <div class="text-xs text-slate-500">All Rights Reserved &copy; <span id="year-nav"></span></div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto px-4 pb-12">
+        
+        <!-- Main Dashboard Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- LEFT COLUMN: Visualization (8 cols) -->
+            <div class="lg:col-span-8 space-y-6">
+                
+                <!-- Graph 1: The Model -->
+                <div class="panel p-1 relative overflow-hidden group">
+                    <div class="absolute top-4 left-4 z-10 bg-white/95 backdrop-blur px-4 py-2 rounded-lg border shadow-sm flex items-center justify-between gap-4 w-[calc(100%-2rem)]">
+                        <div>
+                            <h2 class="font-bold text-slate-700 flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-blue-600"></span> 
+                                1. The Hypothesis Model
+                            </h2>
+                            <p class="text-xs text-slate-500">Fit the line to the data</p>
+                        </div>
+                        <button onclick="toggleDataModal()" class="text-xs font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-3 py-1.5 rounded-md border border-indigo-200 transition-colors flex items-center gap-1">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                            Edit Dataset
+                        </button>
+                    </div>
+                    <div id="regressionPlot" class="w-full h-[450px]"></div>
+                </div>
+
+                <!-- Graph 2: The Cost Surface -->
+                <div class="panel p-1 relative overflow-hidden">
+                    <div class="absolute top-4 left-4 z-10 bg-white/95 backdrop-blur px-4 py-2 rounded-lg border shadow-sm">
+                        <h2 class="font-bold text-slate-700 flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full bg-indigo-600"></span> 
+                            2. The Cost Landscape J(w,b)
+                        </h2>
+                        <p class="text-xs text-slate-500">Gradient Descent Path</p>
+                    </div>
+                    <div id="contourPlot" class="w-full h-[450px]"></div>
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: Controls & Logic (4 cols) -->
+            <div class="lg:col-span-4 space-y-6">
+
+                <!-- Control Panel -->
+                <div class="panel p-6 bg-white">
+                    <h3 class="text-lg font-bold border-b pb-3 mb-4 flex items-center gap-2 text-slate-800">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                        Manual Controls
+                    </h3>
+
+                    <div class="space-y-6">
+                        <!-- W Control -->
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <label class="text-sm font-semibold text-slate-600">Weight (Slope) <span class="text-indigo-600 font-mono">w</span></label>
+                                <span id="val-w" class="font-mono text-sm bg-slate-100 px-2 rounded border border-slate-200">0.00</span>
+                            </div>
+                            <input type="range" id="slider-w" min="-5" max="5" step="0.1" value="0">
+                        </div>
+
+                        <!-- B Control -->
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <label class="text-sm font-semibold text-slate-600">Bias (Intercept) <span class="text-indigo-600 font-mono">b</span></label>
+                                <span id="val-b" class="font-mono text-sm bg-slate-100 px-2 rounded border border-slate-200">0.00</span>
+                            </div>
+                            <input type="range" id="slider-b" min="-5" max="10" step="0.1" value="0">
+                        </div>
+                    </div>
+
+                    <div class="mt-6 pt-6 border-t">
+                        <label class="flex items-center space-x-3 cursor-pointer group">
+                            <input type="checkbox" id="check-squares" class="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 border-gray-300">
+                            <span class="text-sm font-medium text-slate-700 group-hover:text-indigo-700 transition">Show Squared Errors</span>
+                        </label>
+                        <p class="text-[10px] text-slate-400 mt-2 italic ml-8 border-l-2 border-slate-200 pl-2">
+                            * Squares are visual approximations of magnitude, not exact geometric areas.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Gradient Descent Lab -->
+                <div class="panel p-6 bg-slate-50 border-indigo-100">
+                    <h3 class="text-lg font-bold border-b border-indigo-200 pb-3 mb-4 flex items-center gap-2 text-indigo-900">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                        Gradient Descent Lab
+                    </h3>
+
+                    <div class="mb-4">
+                        <label class="text-xs font-bold text-slate-500 uppercase">Learning Rate ($ \alpha $)</label>
+                        <div class="flex items-center gap-2">
+                            <input type="range" id="slider-alpha" min="0.001" max="0.1" step="0.001" value="0.01" class="flex-grow">
+                            <span id="val-alpha" class="font-mono text-xs bg-white border px-2 py-1 rounded">0.01</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 mb-3">
+                        <button id="btn-step" class="bg-white border-2 border-indigo-600 text-indigo-700 font-bold py-2 px-4 rounded hover:bg-indigo-50 transition flex items-center justify-center gap-1">
+                            Step <span class="text-xs bg-indigo-100 px-1 rounded">+1</span>
+                        </button>
+                        <button id="btn-run" class="btn-primary font-bold py-2 px-4 rounded shadow-lg flex items-center justify-center gap-2">
+                            <span>Run Auto</span>
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
+                        </button>
+                    </div>
+                    
+                    <button id="btn-reset" class="w-full text-xs text-slate-500 hover:text-red-500 hover:underline mt-2 transition">
+                        Reset Parameters
+                    </button>
+                </div>
+
+                <!-- Math Metrics -->
+                <div class="panel p-6 bg-slate-900 text-white shadow-xl">
+                    <h3 class="text-sm font-bold text-slate-400 uppercase mb-4 flex items-center justify-between">
+                        Live Metrics
+                        <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                    </h3>
+                    
+                    <div class="space-y-4 font-mono text-sm">
+                        <div class="flex justify-between items-center">
+                            <span class="text-slate-400">MSE Cost J:</span>
+                            <span id="metric-cost" class="text-xl font-bold text-green-400">0.00</span>
+                        </div>
+                        <div class="flex justify-between items-center border-t border-slate-700 pt-2">
+                            <span class="text-slate-400">dJ/dw (Gradient):</span>
+                            <span id="metric-dw" class="text-yellow-400">0.00</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-slate-400">dJ/db (Gradient):</span>
+                            <span id="metric-db" class="text-yellow-400">0.00</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="text-center mt-12 text-slate-400 text-sm pb-8">
+            <p class="font-semibold text-slate-500">Designed for Educational Workshops</p>
+            <p>Gurnoor Singh &copy; <span id="year-footer"></span></p>
+        </div>
+
+    </div>
+
+    <!-- DATA EDIT MODAL -->
+    <div id="dataModal" class="hidden fixed inset-0 z-50 flex items-center justify-center">
+        <!-- Backdrop -->
+        <div class="absolute inset-0 modal-overlay" onclick="toggleDataModal()"></div>
+        
+        <!-- Modal Content -->
+        <div class="bg-white rounded-xl shadow-2xl z-10 w-full max-w-lg mx-4 overflow-hidden transform transition-all">
+            <div class="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+                <h3 class="font-bold text-lg text-slate-800">Edit Dataset</h3>
+                <button onclick="toggleDataModal()" class="text-slate-400 hover:text-slate-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            
+            <div class="p-6 space-y-4">
+                <p class="text-sm text-slate-500">Enter comma-separated values. Ensure both lists have the same number of items.</p>
+                
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-2">X Values (Features)</label>
+                    <input id="input-x" type="text" class="w-full border border-slate-300 rounded-lg p-3 font-mono text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="1.0, 2.0, 3.0...">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-2">Y Values (Labels)</label>
+                    <input id="input-y" type="text" class="w-full border border-slate-300 rounded-lg p-3 font-mono text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="1.5, 3.5, 4.0...">
+                </div>
+
+                <div id="data-error" class="hidden bg-red-50 text-red-600 text-sm p-3 rounded-lg border border-red-100 flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <span>Error: X and Y lists must have same length.</span>
+                </div>
+            </div>
+
+            <div class="bg-slate-50 px-6 py-4 flex justify-end gap-3 border-t border-slate-100">
+                <button onclick="toggleDataModal()" class="px-4 py-2 text-slate-600 font-semibold hover:bg-slate-200 rounded-lg transition">Cancel</button>
+                <button onclick="updateData()" class="px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 shadow-md transition">Update & Visualize</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. DATASETS & STATE ---
+        // Default Data
+        let data = {
+            x: [1.0, 2.0, 2.5, 3.2, 4.0, 5.1],
+            y: [1.5, 2.2, 3.5, 3.8, 5.5, 6.2]
+        };
+        let m = data.x.length;
+
+        // Model State
+        let w = -2.0; 
+        let b = 4.0;
+        let alpha = 0.02; 
+        let isRunning = false;
+        
+        // Initial history must contain current state to show point immediately
+        let historyPath = { w: [w], b: [b] };
+
+        // DOM Elements
+        const elW = document.getElementById('slider-w');
+        const elB = document.getElementById('slider-b');
+        const elAlpha = document.getElementById('slider-alpha');
+        const elValW = document.getElementById('val-w');
+        const elValB = document.getElementById('val-b');
+        const elValAlpha = document.getElementById('val-alpha');
+        const elMetricCost = document.getElementById('metric-cost');
+        const elMetricDw = document.getElementById('metric-dw');
+        const elMetricDb = document.getElementById('metric-db');
+        const chkSquares = document.getElementById('check-squares');
+        const modal = document.getElementById('dataModal');
+        const inputX = document.getElementById('input-x');
+        const inputY = document.getElementById('input-y');
+        const errorMsg = document.getElementById('data-error');
+
+        // Set Copyright Year
+        const year = new Date().getFullYear();
+        document.getElementById('year-nav').innerText = year;
+        document.getElementById('year-footer').innerText = year;
+
+        // --- 2. MATH FUNCTIONS ---
+        
+        function predict(x, weight, bias) {
+            return weight * x + bias;
+        }
+
+        function computeCost(weight, bias) {
+            let totalErrorSq = 0;
+            for(let i=0; i<m; i++) {
+                const diff = predict(data.x[i], weight, bias) - data.y[i];
+                totalErrorSq += (diff * diff);
+            }
+            return totalErrorSq / (2 * m);
+        }
+
+        function computeGradients(weight, bias) {
+            let dj_dw = 0;
+            let dj_db = 0;
+            for(let i=0; i<m; i++) {
+                const error = predict(data.x[i], weight, bias) - data.y[i];
+                dj_dw += error * data.x[i];
+                dj_db += error;
+            }
+            return {
+                dw: dj_dw / m,
+                db: dj_db / m
+            };
+        }
+
+        // --- 3. DATA MANAGEMENT ---
+
+        function toggleDataModal() {
+            modal.classList.toggle('hidden');
+            if (!modal.classList.contains('hidden')) {
+                // Pre-fill inputs
+                inputX.value = data.x.join(', ');
+                inputY.value = data.y.join(', ');
+                errorMsg.classList.add('hidden');
+            }
+        }
+
+        function updateData() {
+            try {
+                const newX = inputX.value.split(',').map(v => parseFloat(v.trim())).filter(n => !isNaN(n));
+                const newY = inputY.value.split(',').map(v => parseFloat(v.trim())).filter(n => !isNaN(n));
+
+                if (newX.length === 0 || newY.length === 0 || newX.length !== newY.length) {
+                    errorMsg.classList.remove('hidden');
+                    return;
+                }
+
+                // Update Data
+                data.x = newX;
+                data.y = newY;
+                m = data.x.length;
+                
+                // Reset State
+                w = 0; // Reset to neutral
+                b = 0;
+                historyPath = { w: [w], b: [b] };
+                
+                // Re-init everything
+                initPlots();
+                updateUI();
+                toggleDataModal();
+
+            } catch (e) {
+                console.error(e);
+                errorMsg.classList.remove('hidden');
+            }
+        }
+
+        // --- 4. PLOTTING HELPERS ---
+
+        let contourZ = [];
+        let contourW = [];
+        let contourB = [];
+
+        function calculateContourGrid() {
+            // Dynamically adjust ranges based on data spread? 
+            // For stability in workshop, we keep a fixed wide range suitable for normalized-ish data
+            // Or roughly center around the optimal solution if we wanted to be fancy.
+            // For now, fixed range is safer for visualization stability.
+            const wMin = -5, wMax = 10;
+            const bMin = -5, bMax = 15;
+            const steps = 40;
+            
+            contourZ = [];
+            contourW = [];
+            contourB = [];
+
+            for(let i=0; i<=steps; i++) {
+                contourB.push(bMin + (bMax - bMin) * (i/steps));
+                contourW.push(wMin + (wMax - wMin) * (i/steps));
+            }
+            for(let i=0; i<contourB.length; i++) {
+                const row = [];
+                for(let j=0; j<contourW.length; j++) {
+                    row.push(computeCost(contourW[j], contourB[i]));
+                }
+                contourZ.push(row);
+            }
+        }
+
+        function initPlots() {
+            // Recalculate contour surface for new data
+            calculateContourGrid();
+
+            // A. Regression Plot
+            // Calculate dynamic ranges for plot
+            const xMax = Math.max(...data.x) * 1.2;
+            const yMax = Math.max(...data.y) * 1.2;
+
+            const traceData = {
+                x: data.x, y: data.y,
+                mode: 'markers', name: 'Training Data',
+                marker: { color: '#0f172a', size: 12, symbol: 'circle' }
+            };
+            
+            const traceLine = {
+                x: [0, xMax], y: [0, 0],
+                mode: 'lines', name: 'Model',
+                line: { color: '#4f46e5', width: 4 }
+            };
+
+            const layoutReg = {
+                margin: {t:20, b:40, l:40, r:20},
+                xaxis: {title: 'Feature (x)', range: [0, xMax], fixedrange: true},
+                yaxis: {title: 'Target (y)', range: [0, yMax], fixedrange: true},
+                hovermode: false,
+                shapes: [] 
+            };
+
+            Plotly.newPlot('regressionPlot', [traceData, traceLine], layoutReg, {displayModeBar: false});
+
+            // B. Contour Plot
+            const traceContour = {
+                z: contourZ, x: contourW, y: contourB,
+                type: 'contour',
+                colorscale: 'Portland',
+                contours: { coloring: 'heatmap' },
+                showscale: false
+            };
+
+            const tracePath = {
+                x: historyPath.w, y: historyPath.b, // Use current history
+                mode: 'lines+markers',
+                name: 'GD Path',
+                line: { color: 'white', width: 2, dash: 'dot' },
+                marker: { color: 'white', size: 4 }
+            };
+
+            const traceCurrent = {
+                x: [w], y: [b],
+                mode: 'markers',
+                marker: { color: '#ef4444', size: 12, line: {color: 'white', width: 2} },
+                name: 'Current State'
+            };
+
+            const layoutContour = {
+                margin: {t:20, b:40, l:40, r:20},
+                xaxis: {title: 'w (Slope)'},
+                yaxis: {title: 'b (Bias)'},
+                hovermode: false
+            };
+
+            Plotly.newPlot('contourPlot', [traceContour, tracePath, traceCurrent], layoutContour, {displayModeBar: false});
+        }
+
+        // --- 5. UPDATE VISUALS ---
+
+        function updateUI() {
+            // Update Vars
+            const cost = computeCost(w, b);
+            const grads = computeGradients(w, b);
+            const xMax = Math.max(...data.x) * 1.2;
+
+            // 1. Update Plotly Regression
+            const lineY = [predict(0, w, b), predict(xMax, w, b)];
+            
+            // Generate Shapes (Residuals + Squares)
+            const shapes = [];
+            
+            for(let i=0; i<m; i++) {
+                const y_hat = predict(data.x[i], w, b);
+                
+                // Line Residual
+                shapes.push({
+                    type: 'line',
+                    x0: data.x[i], y0: data.y[i],
+                    x1: data.x[i], y1: y_hat,
+                    line: { color: '#ef4444', width: 2, dash: 'solid' }
+                });
+
+                // Square Visual (Optional)
+                if(chkSquares.checked) {
+                    const diff = y_hat - data.y[i];
+                    // Visual approximation scaling factor
+                    // We scale the visual width of the square to match the Y-axis units visually
+                    const size = Math.abs(diff); 
+                    
+                    shapes.push({
+                        type: 'rect',
+                        x0: data.x[i], 
+                        y0: Math.min(data.y[i], y_hat),
+                        x1: data.x[i] + (size * 0.2), // Reduced width scalar for visual fit on non-square aspect ratio
+                        y1: Math.max(data.y[i], y_hat),
+                        fillcolor: 'rgba(239, 68, 68, 0.2)',
+                        line: { width: 0 }
+                    });
+                }
+            }
+
+            Plotly.animate('regressionPlot', {
+                data: [{}, {x: [0, xMax], y: lineY}], 
+                layout: { shapes: shapes }
+            }, {transition: {duration: 0}, frame: {duration: 0, redraw: false}});
+
+            // 2. Update Plotly Contour
+            Plotly.animate('contourPlot', {
+                data: [{}, {x: historyPath.w, y: historyPath.b}, {x: [w], y: [b]}]
+            }, {transition: {duration: 0}, frame: {duration: 0, redraw: false}});
+
+            // 3. Update Text Metrics
+            elValW.innerText = w.toFixed(2);
+            elValB.innerText = b.toFixed(2);
+            elW.value = w;
+            elB.value = b;
+            
+            elMetricCost.innerText = cost.toFixed(4);
+            elMetricDw.innerText = grads.dw.toFixed(4);
+            elMetricDb.innerText = grads.db.toFixed(4);
+        }
+
+        // --- 6. LOGIC & EVENTS ---
+
+        elW.addEventListener('input', e => {
+            w = parseFloat(e.target.value);
+            historyPath = { w: [w], b: [b] }; // Reset history on manual move
+            updateUI();
+        });
+        
+        elB.addEventListener('input', e => {
+            b = parseFloat(e.target.value);
+            historyPath = { w: [w], b: [b] }; // Reset history
+            updateUI();
+        });
+
+        elAlpha.addEventListener('input', e => {
+            alpha = parseFloat(e.target.value);
+            elValAlpha.innerText = alpha.toFixed(3);
+        });
+
+        chkSquares.addEventListener('change', updateUI);
+
+        function stepGradient() {
+            const grads = computeGradients(w, b);
+            
+            // Update parameters
+            w = w - (alpha * grads.dw);
+            b = b - (alpha * grads.db);
+            
+            // Save history for plotting
+            historyPath.w.push(w);
+            historyPath.b.push(b);
+
+            updateUI();
+        }
+
+        document.getElementById('btn-step').addEventListener('click', () => {
+            stepGradient();
+        });
+
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            // Reset to "bad" values for demo
+            w = -2.0;
+            b = 4.0;
+            historyPath = { w: [w], b: [b] };
+            isRunning = false;
+            updateUI();
+        });
+
+        document.getElementById('btn-run').addEventListener('click', async () => {
+            if(isRunning) return;
+            isRunning = true;
+            
+            const btn = document.getElementById('btn-run');
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = `<span class="animate-spin">↻</span> Running...`;
+            btn.disabled = true;
+
+            // Simple convergence loop
+            for(let i=0; i<100; i++) {
+                if(!isRunning) break;
+                stepGradient();
+                await new Promise(r => setTimeout(r, 40)); 
+                
+                const grads = computeGradients(w, b);
+                if(Math.abs(grads.dw) < 0.01 && Math.abs(grads.db) < 0.01) break;
+            }
+
+            isRunning = false;
+            btn.innerHTML = originalContent;
+            btn.disabled = false;
+        });
+
+        // Initialize
+        initPlots();
+        updateUI();
+
+    </script>
+</body>
+</html>
