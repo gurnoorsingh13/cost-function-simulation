@@ -129,8 +129,3 @@ Designed and maintained by **Gurnoor Singh** for educational workshops and demon
 *   *Contributions and feature ideas are welcome! Feel free to fork this project, open pull requests, or file issues.*
 *   *Designed to make machine learning principles accessible, visual, and engaging.*
 
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
